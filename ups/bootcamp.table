@@ -1,0 +1,4 @@
+setupRequired(lsst_distrib -t w_2020_41)
+setupRequired(daf_butler -j -r ${PRODUCT_DIR}/daf_butler)
+setupOptional(testdata_ci_hsc -j -r /home/jbosch/LSST/src/testdata_ci_hsc)
+setupOptional(ci_hsc_gen3 -j -r /home/jbosch/LSST/src/ci_hsc_gen3)
