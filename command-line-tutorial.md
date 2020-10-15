@@ -171,7 +171,7 @@ Let's kick it off now in the simplest possible way, using that `HSC/defaults` co
     characterizeImage.detection INFO: Detected 957 positive peaks in 272 footprints and 0 negative peaks in 0 footprints to 50 sigma
     characterizeImage.detection INFO: Resubtracting the background after object detection
     ^C
-    Aborted!
+Aborted!
 
 I've killed it early, because it'll be more interesting to play with partial results than complete ones.
 But before we get to that, there's a lot to unpack in that command and those outputs.
@@ -192,8 +192,6 @@ Let's take a quick look at what the collections in the repo look like now:
 
     $ butler query-collections DATA
     collections:
-    - HSC/calib
-    - HSC/calib/unbounded
     - HSC/calib/curated/1970-01-01T00:00:00
     - HSC/calib/curated/2013-01-31T00:00:00
     - HSC/calib/curated/2014-04-03T00:00:00
@@ -202,20 +200,23 @@ Let's take a quick look at what the collections in the repo look like now:
     - HSC/calib/curated/2016-04-01T00:00:00
     - HSC/calib/curated/2016-11-22T00:00:00
     - HSC/calib/curated/2016-12-23T00:00:00
-    - skymaps
-    - HSC/raw/all
     - HSC/calib/gen2/2013-06-17
     - HSC/calib/gen2/2013-11-03
     - HSC/calib/gen2/2014-07-14
     - HSC/calib/gen2/2014-11-12
+    - HSC/calib/unbounded
     - HSC/external
     - HSC/masks
+    - HSC/raw/all
     - refcats
-    - shared/ci_hsc_output/20201011T20h12m55s
+    - shared/ci_hsc_output/20201014T12h02m01s
+    - skymaps
+    - HSC/calib
     - shared/ci_hsc_output
     - HSC/defaults
-    - u/jbosch/bootcamp/1/20201013T14h04m17s
+    - u/jbosch/bootcamp/1/20201014T17h52m07s
     - u/jbosch/bootcamp/1
+
 
 We got _two_ new collections at the end there:
  - the one we specified on the command-line, `u/jbosch/bootcamp/1`
@@ -226,7 +227,7 @@ The `RUN` contains all of the direct outputs of the processing, while the `CHAIN
 
     $ butler query-collections DATA --flatten-chains u/jbosch/bootcamp/1
     collections:
-    - u/jbosch/bootcamp/1/20201013T14h04m17s
+    - u/jbosch/bootcamp/1/20201014T17h52m07s
     - HSC/raw/all
     - HSC/calib
     - HSC/masks
@@ -239,9 +240,10 @@ We can also look for the datasets directly; I happen to know that the only outpu
 
     $ butler query-datasets DATA postISRCCD --collections u/jbosch/bootcamp/1 --find-first
 
-       type                     run                    id  instrument detector exposure
+    type                     run                    id  instrument detector exposure
     ---------- -------------------------------------- ---- ---------- -------- --------
-    postISRCCD u/jbosch/bootcamp/1/20201013T14h09m42s 1745        HSC        5   903344
+    postISRCCD u/jbosch/bootcamp/1/20201014T17h52m07s 1736        HSC        5   903344
+
 
 I've used `--find-first` because I only want the first matching dataset for each dataset type and data ID.
 That doesn't matter yet, but it will later.
@@ -249,9 +251,9 @@ That doesn't matter yet, but it will later.
 Running pipelines again
 -----------------------
 
-Let's imagine now that I killed this job because I realized I forgot to add the `--long-log` option, and try running this again with that:
+Let's imagine now that I killed this job because I realized I forgot to turn off dark correction, as I'd intended, and try running this again with that:
 
-    $ pipetask run -b DATA -p pipelines/example.yaml -i HSC/defaults -o u/jbosch/bootcamp/1 -d "instrument='HSC' AND visit=903344 AND detector=5"
+    $ pipetask run -b DATA -p pipelines/example.yaml -i HSC/defaults -o u/jbosch/bootcamp/1 -d "instrument='HSC' AND visit=903344 AND detector=5" -c isr:doDark=False
     Error: An error occurred during command execution:
     Traceback (most recent call last):
     File "/home/jbosch/LSST/lsstsw/stack/cb4e2dc/Linux64/daf_butler/19.0.0-172-gc4bef2ce+ff10c6d78d/python/lsst/daf/butler/cli/utils.py", line 446, in cli_handle_exception
@@ -276,11 +278,10 @@ It's not happy, because:
 We've got a ticket to make it smart enough, but note that it will _always_ complain if the inputs have indeed changed.
 So, let's try again, this time without the `-i` option:
 
-    $ pipetask --long-log run -b DATA -p pipelines/example.yaml -o u/jbosch/bootcamp/1 -d "instrument='HSC' AND visit=903344 AND detector=5"
+    $ pipetask run -b DATA -p pipelines/example.yaml -o u/jbosch/bootcamp/1 -d "instrument='HSC' AND visit=903344 AND detector=5" -c isr:doDark=False
     ctrl.mpexec.cmdLineFwk INFO: QuantumGraph contains 15 quanta for 4 tasks
     conda.common.io INFO: overtaking stderr and stdout
     conda.common.io INFO: stderr and stdout yielding back
-    afw.image.MaskedImageFitsReader WARN: Expected extension type not found: IMAGE
     afw.image.MaskedImageFitsReader WARN: Expected extension type not found: IMAGE
     isr INFO: Converting exposure to floating point values.
     isr INFO: Assembling CCD from amplifiers.
@@ -291,52 +292,45 @@ So, let's try again, this time without the `-i` option:
     isr INFO: Masking defects.
     isr INFO: Masking NAN value pixels.
     isr INFO: Widening saturation trails.
-    isr WARN: darkExposure.getInfo().getVisitInfo() does not exist. Using darkScale = 1.0.
-    isr WARN: darkExposure.getInfo().getVisitInfo() does not exist. Using darkScale = 1.0.
     isr INFO: Applying brighter fatter correction using kernel type <class 'numpy.ndarray'> / gains <class 'NoneType'>.
     isr INFO: Finished brighter fatter correction in 3 iterations.
     isr INFO: Ensuring image edges are masked as SUSPECT to the brighter-fatter kernel size.
     isr INFO: Growing masks to account for brighter-fatter kernel convolution.
-    isr INFO: Applying dark correction.
-    isr WARN: darkExposure.getInfo().getVisitInfo() does not exist. Using darkScale = 1.0.
     isr INFO: Applying flat correction.
     isr INFO: Applying fringe correction after flat.
     isr.fringe INFO: Filter not found in FringeTaskConfig.filters. Skipping fringe correction.
     isr INFO: Constructing Vignette polygon.
     isr INFO: Adding transmission curves.
-    isr INFO: Set 232863 BAD pixels to 178.167053.
+    isr INFO: Set 232863 BAD pixels to 178.199249.
     isr INFO: Interpolating masked pixels.
     isr INFO: Setting rough magnitude zero point: 32.692803
     isr INFO: Measuring background level.
-    isr INFO: Flattened sky level: 178.161118 +/- 7.345197.
-    isr INFO: Measuring sky levels in 8x16 grids: 177.987633.
-    isr INFO: Sky flatness in 8x16 grids - pp: 0.026886 rms: 0.004539.
+    isr INFO: Flattened sky level: 178.193405 +/- 7.347141.
+    isr INFO: Measuring sky levels in 8x16 grids: 178.022744.
+    isr INFO: Sky flatness in 8x16 grids - pp: 0.026886 rms: 0.004540.
     characterizeImage WARN: Source catalog detected and measured with placeholder or default PSF
     characterizeImage.repair INFO: Identified 57 cosmic rays.
-    characterizeImage.detection INFO: Detected 957 positive peaks in 272 footprints and 0 negative peaks in 0 footprints to 50 sigma
+    characterizeImage.detection INFO: Detected 955 positive peaks in 272 footprints and 0 negative peaks in 0 footprints to 50 sigma
     characterizeImage.detection INFO: Resubtracting the background after object detection
     characterizeImage.measurement INFO: Measuring 272 sources (272 parents, 0 children)
     ^C
     Aborted!
 
-It worked!  Except the `--long-log` option didn't do anything.
-We've got a ticket for that, too; let's move on.
-
 Let's look at the collections again (I'll start using a glob now to filter out irrelevant ones):
 
     $ butler query-collections DATA u/jbosch/bootcamp/*
     collections:
-    - u/jbosch/bootcamp/1/20201013T14h04m17s
+    - u/jbosch/bootcamp/1/20201014T17h52m07s
     - u/jbosch/bootcamp/1
-    - u/jbosch/bootcamp/1/20201013T14h09m42s
+    - u/jbosch/bootcamp/1/20201014T17h54m41s
 
 So, we've now got two `RUN` collections with timestamp-based names, and the same `CHAINED` collection.
 What does that `CHAINED` collection look like now?
 
     $ butler query-collections DATA --flatten-chains u/jbosch/bootcamp/1
     collections:
-    - u/jbosch/bootcamp/1/20201013T14h09m42s
-    - u/jbosch/bootcamp/1/20201013T14h04m17s
+    - u/jbosch/bootcamp/1/20201014T17h54m41s
+    - u/jbosch/bootcamp/1/20201014T17h52m07s
     - HSC/raw/all
     - HSC/calib
     - HSC/masks
@@ -353,8 +347,8 @@ The outputs of the first invocation are still there, too, if we look _without_ `
 
     type                     run                    id  instrument detector exposure
     ---------- -------------------------------------- ---- ---------- -------- --------
-    postISRCCD u/jbosch/bootcamp/1/20201013T14h09m42s 1745        HSC        5   903344
-    postISRCCD u/jbosch/bootcamp/1/20201013T14h04m17s 1736        HSC        5   903344
+    postISRCCD u/jbosch/bootcamp/1/20201014T17h54m41s 1745        HSC        5   903344
+    postISRCCD u/jbosch/bootcamp/1/20201014T17h52m07s 1736        HSC        5   903344
 
 But if we search with `--find-first` (which is the logic `Butler.get` would use internally to actually load this dataset in Python), we only see the new one; it "shadows" the previous one:
 
@@ -362,19 +356,18 @@ But if we search with `--find-first` (which is the logic `Butler.get` would use 
 
     type                     run                    id  instrument detector exposure
     ---------- -------------------------------------- ---- ---------- -------- --------
-    postISRCCD u/jbosch/bootcamp/1/20201013T14h09m42s 1745        HSC        5   903344
-
+    postISRCCD u/jbosch/bootcamp/1/20201014T17h54m41s 1745        HSC        5   903344
 
 Now, let's imagine that I didn't actually want to stop processing there, and now I want to pick up where I left off, and go straight to running `characterizeImage` on the ISR outputs.
 I can do that by adding `--extend-run --skip-existing` to my `pipetask` invocation:
 
-    $ $ pipetask run -b DATA -p pipelines/example.yaml -o u/jbosch/bootcamp/1 -d "instrument='HSC' AND visit=903344 AND detector=5" --extend-run --skip-existing
+    $ pipetask run -b DATA -p pipelines/example.yaml -o u/jbosch/bootcamp/1 -d "instrument='HSC' AND visit=903344 AND detector=5" -c isr:doDark=False --extend-run --skip-existing
     ctrl.mpexec.cmdLineFwk INFO: QuantumGraph contains 14 quanta for 4 tasks
     conda.common.io INFO: overtaking stderr and stdout
     conda.common.io INFO: stderr and stdout yielding back
     characterizeImage WARN: Source catalog detected and measured with placeholder or default PSF
     characterizeImage.repair INFO: Identified 57 cosmic rays.
-    characterizeImage.detection INFO: Detected 957 positive peaks in 272 footprints and 0 negative peaks in 0 footprints to 50 sigma
+    characterizeImage.detection INFO: Detected 955 positive peaks in 272 footprints and 0 negative peaks in 0 footprints to 50 sigma
     characterizeImage.detection INFO: Resubtracting the background after object detection
     characterizeImage.measurement INFO: Measuring 272 sources (272 parents, 0 children)
     characterizeImage.measurePsf INFO: Measuring PSF
@@ -383,58 +376,52 @@ I can do that by adding `--extend-run --skip-existing` to my `pipetask` invocati
     characterizeImage.measurePsf INFO: Sending 118 candidates to PSF determiner
     characterizeImage.measurePsf.psfDeterminer WARN: NOT scaling kernelSize by stellar quadrupole moment, but using absolute value
     characterizeImage.measurePsf INFO: PSF determination using 116/118 stars.
-    characterizeImage INFO: iter 1; PSF sigma=1.76, dimensions=(41, 41); median background=177.88
+    characterizeImage INFO: iter 1; PSF sigma=1.76, dimensions=(41, 41); median background=177.91
     characterizeImage WARN: Source catalog detected and measured with placeholder or default PSF
     characterizeImage.repair INFO: Identified 52 cosmic rays.
-    characterizeImage.detection INFO: Detected 872 positive peaks in 273 footprints and 0 negative peaks in 0 footprints to 50 sigma
+    characterizeImage.detection INFO: Detected 875 positive peaks in 273 footprints and 0 negative peaks in 0 footprints to 50 sigma
     characterizeImage.detection INFO: Resubtracting the background after object detection
     characterizeImage.measurement INFO: Measuring 273 sources (273 parents, 0 children)
     characterizeImage.measurePsf INFO: Measuring PSF
-    characterizeImage.measurePsf INFO: PSF star selector found 149 candidates
-    characterizeImage.measurePsf.reserve INFO: Reserved 30/149 sources
-    characterizeImage.measurePsf INFO: Sending 119 candidates to PSF determiner
+    characterizeImage.measurePsf INFO: PSF star selector found 150 candidates
+    characterizeImage.measurePsf.reserve INFO: Reserved 30/150 sources
+    characterizeImage.measurePsf INFO: Sending 120 candidates to PSF determiner
     characterizeImage.measurePsf.psfDeterminer WARN: NOT scaling kernelSize by stellar quadrupole moment, but using absolute value
-    characterizeImage.measurePsf INFO: PSF determination using 117/119 stars.
-    characterizeImage INFO: iter 2; PSF sigma=1.76, dimensions=(41, 41); median background=177.86
+    characterizeImage.measurePsf INFO: PSF determination using 118/120 stars.
+    characterizeImage INFO: iter 2; PSF sigma=1.76, dimensions=(41, 41); median background=177.89
     characterizeImage.repair INFO: Identified 55 cosmic rays.
     characterizeImage.measurement INFO: Measuring 273 sources (273 parents, 0 children)
     characterizeImage.measureApCorr INFO: Measuring aperture corrections for 23 flux fields
-    characterizeImage.measureApCorr.sourceSelector INFO: Selected 53/273 sources
-    characterizeImage.measureApCorr INFO: Aperture correction for ext_convolved_ConvolvedFlux_0_kron: RMS 0.002149 from 48
-    characterizeImage.measureApCorr INFO: Aperture correction for ext_convolved_ConvolvedFlux_3_4_5: RMS 0.007855 from 50
-    characterizeImage.measureApCorr INFO: Aperture correction for modelfit_CModel_initial: RMS 0.005734 from 50
-    characterizeImage.measureApCorr INFO: Aperture correction for base_PsfFlux: RMS 0.004999 from 50
-    characterizeImage.measureApCorr INFO: Aperture correction for ext_convolved_ConvolvedFlux_1_3_3: RMS 0.013698 from 50
-    characterizeImage.measureApCorr INFO: Aperture correction for ext_convolved_ConvolvedFlux_3_3_3: RMS 0.031499 from 50
-    characterizeImage.measureApCorr INFO: Aperture correction for ext_convolved_ConvolvedFlux_3_6_0: RMS 0.005099 from 50
-    characterizeImage.measureApCorr INFO: Aperture correction for modelfit_CModel_exp: RMS 0.005012 from 50
-    characterizeImage.measureApCorr INFO: Aperture correction for base_GaussianFlux: RMS 0.005589 from 49
-    characterizeImage.measureApCorr INFO: Aperture correction for ext_convolved_ConvolvedFlux_0_6_0: RMS 0.004412 from 50
-    characterizeImage.measureApCorr INFO: Aperture correction for ext_convolved_ConvolvedFlux_1_4_5: RMS 0.005466 from 49
-    characterizeImage.measureApCorr INFO: Aperture correction for ext_convolved_ConvolvedFlux_3_kron: RMS 0.003018 from 51
-    characterizeImage.measureApCorr INFO: Aperture correction for ext_convolved_ConvolvedFlux_0_3_3: RMS 0.011327 from 50
-    characterizeImage.measureApCorr INFO: Aperture correction for modelfit_CModel_dev: RMS 0.005386 from 50
-    characterizeImage.measureApCorr INFO: Aperture correction for ext_convolved_ConvolvedFlux_1_kron: RMS 0.002000 from 48
-    characterizeImage.measureApCorr INFO: Aperture correction for ext_convolved_ConvolvedFlux_2_4_5: RMS 0.006810 from 50
-    characterizeImage.measureApCorr INFO: Aperture correction for ext_convolved_ConvolvedFlux_0_4_5: RMS 0.005146 from 49
-    characterizeImage.measureApCorr INFO: Aperture correction for ext_convolved_ConvolvedFlux_1_6_0: RMS 0.004481 from 50
-    characterizeImage.measureApCorr INFO: Aperture correction for ext_convolved_ConvolvedFlux_2_6_0: RMS 0.004736 from 50
-    characterizeImage.measureApCorr INFO: Aperture correction for ext_photometryKron_KronFlux: RMS 0.002149 from 48
-    characterizeImage.measureApCorr INFO: Aperture correction for ext_convolved_ConvolvedFlux_2_3_3: RMS 0.021317 from 50
-    characterizeImage.measureApCorr INFO: Aperture correction for ext_convolved_ConvolvedFlux_2_kron: RMS 0.001897 from 50
-    characterizeImage.measureApCorr INFO: Aperture correction for modelfit_CModel: RMS 0.005219 from 50
+    characterizeImage.measureApCorr.sourceSelector INFO: Selected 52/273 sources
+    characterizeImage.measureApCorr INFO: Aperture correction for ext_convolved_ConvolvedFlux_3_4_5: RMS 0.007382 from 49
+    characterizeImage.measureApCorr INFO: Aperture correction for ext_convolved_ConvolvedFlux_1_3_3: RMS 0.012637 from 49
+    characterizeImage.measureApCorr INFO: Aperture correction for ext_convolved_ConvolvedFlux_2_4_5: RMS 0.006439 from 49
+    characterizeImage.measureApCorr INFO: Aperture correction for ext_convolved_ConvolvedFlux_3_kron: RMS 0.002965 from 50
+    characterizeImage.measureApCorr INFO: Aperture correction for ext_convolved_ConvolvedFlux_1_6_0: RMS 0.004189 from 49
+    characterizeImage.measureApCorr INFO: Aperture correction for base_PsfFlux: RMS 0.004669 from 49
+    characterizeImage.measureApCorr INFO: Aperture correction for modelfit_CModel_initial: RMS 0.005801 from 49
+    characterizeImage.measureApCorr INFO: Aperture correction for ext_convolved_ConvolvedFlux_3_3_3: RMS 0.029590 from 49
+    characterizeImage.measureApCorr INFO: Aperture correction for base_GaussianFlux: RMS 0.005745 from 48
+    characterizeImage.measureApCorr INFO: Aperture correction for modelfit_CModel_dev: RMS 0.005656 from 49
+    characterizeImage.measureApCorr INFO: Aperture correction for modelfit_CModel_exp: RMS 0.005013 from 49
+    characterizeImage.measureApCorr INFO: Aperture correction for ext_convolved_ConvolvedFlux_1_kron: RMS 0.001845 from 47
+    characterizeImage.measureApCorr INFO: Aperture correction for ext_convolved_ConvolvedFlux_0_3_3: RMS 0.010627 from 49
+    characterizeImage.measureApCorr INFO: Aperture correction for ext_convolved_ConvolvedFlux_2_kron: RMS 0.001970 from 49
+    characterizeImage.measureApCorr INFO: Aperture correction for ext_convolved_ConvolvedFlux_1_4_5: RMS 0.005171 from 48
+    characterizeImage.measureApCorr INFO: Aperture correction for ext_convolved_ConvolvedFlux_2_6_0: RMS 0.004441 from 49
+    characterizeImage.measureApCorr INFO: Aperture correction for ext_convolved_ConvolvedFlux_0_4_5: RMS 0.004992 from 48
+    characterizeImage.measureApCorr INFO: Aperture correction for ext_photometryKron_KronFlux: RMS 0.001926 from 47
+    characterizeImage.measureApCorr INFO: Aperture correction for modelfit_CModel: RMS 0.005626 from 49
+    characterizeImage.measureApCorr INFO: Aperture correction for ext_convolved_ConvolvedFlux_3_6_0: RMS 0.004771 from 49
+    characterizeImage.measureApCorr INFO: Aperture correction for ext_convolved_ConvolvedFlux_2_3_3: RMS 0.019837 from 49
+    characterizeImage.measureApCorr INFO: Aperture correction for ext_convolved_ConvolvedFlux_0_kron: RMS 0.001926 from 47
+    characterizeImage.measureApCorr INFO: Aperture correction for ext_convolved_ConvolvedFlux_0_6_0: RMS 0.004068 from 49
     characterizeImage.applyApCorr INFO: Applying aperture corrections to 23 instFlux fields
-    calibrate.detection INFO: Detected 1814 positive peaks in 1020 footprints and 27 negative peaks in 25 footprints to 5 sigma
+    calibrate.detection INFO: Detected 1810 positive peaks in 1018 footprints and 26 negative peaks in 24 footprints to 5 sigma
     calibrate.detection INFO: Resubtracting the background after object detection
     calibrate.skySources INFO: Added 100 of 100 requested sky sources (100%)
-    calibrate.deblend INFO: Deblending 1120 sources
-    calibrate.deblend WARN: Parent 775966608882401524: skipping large footprint (area: 16639)
-    calibrate.deblend WARN: Parent 775966608882401883: skipping large footprint (area: 10848)
-    calibrate.deblend WARN: Parent 775966608882401887: skipping large footprint (area: 53868)
-    calibrate.deblend WARN: Parent 775966608882401998: skipping large footprint (area: 22200)
-    calibrate.deblend WARN: Parent 775966608882402114: skipping large footprint (area: 10975)
-    calibrate.deblend INFO: Deblended: of 1120 sources, 94 were deblended, creating 370 children, total 1490 sources
-    calibrate.measurement INFO: Measuring 1490 sources (1120 parents, 370 children)
+    calibrate.deblend INFO: Deblending 1118 sources
+    calibrate.deblend WARN: Parent 775966608882401524: skipping large footprint (area: 16643)
     ^C
     Aborted!
 
@@ -442,8 +429,8 @@ The `--extend-run` option says to just add more datasets to the last `RUN`-type 
 
     $ butler query-collections DATA --flatten-chains u/jbosch/bootcamp/1
     collections:
-    - u/jbosch/bootcamp/1/20201013T14h09m42s
-    - u/jbosch/bootcamp/1/20201013T14h04m17s
+    - u/jbosch/bootcamp/1/20201014T17h54m41s
+    - u/jbosch/bootcamp/1/20201014T17h52m07s
     - HSC/raw/all
     - HSC/calib
     - HSC/masks
@@ -452,17 +439,19 @@ The `--extend-run` option says to just add more datasets to the last `RUN`-type 
 
 But now we have some new datasets:
 
-    $ butler query-datasets DATA icExp icSrc --collections u/jbosch/bootcamp/1 --find-first
+    18:00 $ butler query-datasets DATA icExp icSrc --collections u/jbosch/bootcamp/1 --find-first
 
     type                  run                    id  instrument detector visit
     ----- -------------------------------------- ---- ---------- -------- ------
-    icSrc u/jbosch/bootcamp/1/20201013T14h09m42s 1747        HSC        5 903344
+    icSrc u/jbosch/bootcamp/1/20201014T17h54m41s 1747        HSC        5 903344
 
     type                  run                    id  instrument detector visit
     ----- -------------------------------------- ---- ---------- -------- ------
-    icExp u/jbosch/bootcamp/1/20201013T14h09m42s 1749        HSC        5 903344
+    icExp u/jbosch/bootcamp/1/20201014T17h54m41s 1749        HSC        5 903344
+
 
 As the name implies, `--skip-existing` says to skip quanta (task executions) that would generate outputs that already exist in the output run.
+Here it skipped a the one and only ISR quantum that we had, but if we were processing multiple detectors, it'd be just as happy to skip one ISR quantum for the first detector and move onto another ISR quantum for the next.
 Right now, it just doesn't work to pass either of `--extend-run` or `--skip-existing` on its own, for reasons I don't want to get into, and we may merge them in the future.
 
 Running modified pipelines
@@ -470,12 +459,12 @@ Running modified pipelines
 
 Passing `--extend-run` comes with an important constraint: we automatically write all configuration options and a list of software versions to each `RUN` collection as special datasets, and when you use `--extend-run`, we demand that none of those have changed:
 
-    $ pipetask run -b DATA -p pipelines/example.yaml -o u/jbosch/bootcamp/1 -d "instrument='HSC' AND visit=903344 AND detector=5" --extend-run --skip-existing -c isr:doDark=False
+    $ pipetask run -b DATA -p pipelines/example.yaml -o u/jbosch/bootcamp/1 -d "instrument='HSC' AND visit=903344 AND detector=5" --extend-run --skip-existing
     ctrl.mpexec.cmdLineFwk INFO: QuantumGraph contains 13 quanta for 4 tasks
-    ctrl.mpexec.preExecInit FATAL: Comparing configuration: Inequality in doDark: False != True
+    ctrl.mpexec.preExecInit FATAL: Comparing configuration: Inequality in doDark: True != False
     Error: An error occurred during command execution:
     Traceback (most recent call last):
-    File "/home/jbosch/LSST/lsstsw/stack/cb4e2dc/Linux64/daf_butler/19.0.0-172-gc4bef2ce+ff10c6d78d/python/lsst/daf/butler/cli/utils.py", line 446, in cli_handle_exception
+    File "/home/jbosch/LSST/ops-bootcamp-2020/daf_butler/python/lsst/daf/butler/cli/utils.py", line 446, in cli_handle_exception
         return func(*args, **kwargs)
     File "/home/jbosch/LSST/lsstsw/stack/cb4e2dc/Linux64/ctrl_mpexec/20.0.0-31-g5eb8f13+6f95832be2/python/lsst/ctrl/mpexec/cli/script/run.py", line 173, in run
         f.runPipeline(qgraphObj, taskFactory, args)
@@ -493,62 +482,7 @@ But `--clobber-config` doesn't exist in Gen3, and I don't think it needs to: jus
 If you want to go a step further and just redefine the `CHAINED` collection to have _only_ the new collection, you can use `--replace-run`.
 Before we demo that, let's start over with a brand-new output `CHAINED` collection (note the `/2` suffix, and the fact that we had to add `-i HSC/defaults` back in):
 
-    $ pipetask run -b DATA -p pipelines/example.yaml -o u/jbosch/bootcamp/2 -i HSC/defaults -d "instrument='HSC' AND visit=903344 AND detector=5"
-    ctrl.mpexec.cmdLineFwk INFO: QuantumGraph contains 15 quanta for 4 tasks
-    conda.common.io INFO: overtaking stderr and stdout
-    conda.common.io INFO: stderr and stdout yielding back
-    afw.image.MaskedImageFitsReader WARN: Expected extension type not found: IMAGE
-    afw.image.MaskedImageFitsReader WARN: Expected extension type not found: IMAGE
-    isr INFO: Converting exposure to floating point values.
-    isr INFO: Assembling CCD from amplifiers.
-    isr INFO: Applying bias correction.
-    isr INFO: Applying linearizer.
-    isr INFO: Applying crosstalk correction.
-    isr.crosstalk INFO: Applying crosstalk correction.
-    isr INFO: Masking defects.
-    isr INFO: Masking NAN value pixels.
-    isr INFO: Widening saturation trails.
-    isr WARN: darkExposure.getInfo().getVisitInfo() does not exist. Using darkScale = 1.0.
-    isr WARN: darkExposure.getInfo().getVisitInfo() does not exist. Using darkScale = 1.0.
-    isr INFO: Applying brighter fatter correction using kernel type <class 'numpy.ndarray'> / gains <class 'NoneType'>.
-    isr INFO: Finished brighter fatter correction in 3 iterations.
-    isr INFO: Ensuring image edges are masked as SUSPECT to the brighter-fatter kernel size.
-    isr INFO: Growing masks to account for brighter-fatter kernel convolution.
-    isr INFO: Applying dark correction.
-    isr WARN: darkExposure.getInfo().getVisitInfo() does not exist. Using darkScale = 1.0.
-    isr INFO: Applying flat correction.
-    isr INFO: Applying fringe correction after flat.
-    isr.fringe INFO: Filter not found in FringeTaskConfig.filters. Skipping fringe correction.
-    isr INFO: Constructing Vignette polygon.
-    isr INFO: Adding transmission curves.
-    isr INFO: Set 232863 BAD pixels to 178.167053.
-    isr INFO: Interpolating masked pixels.
-    isr INFO: Setting rough magnitude zero point: 32.692803
-    isr INFO: Measuring background level.
-    isr INFO: Flattened sky level: 178.161118 +/- 7.345197.
-    isr INFO: Measuring sky levels in 8x16 grids: 177.987633.
-    isr INFO: Sky flatness in 8x16 grids - pp: 0.026886 rms: 0.004539.
-    characterizeImage WARN: Source catalog detected and measured with placeholder or default PSF
-    characterizeImage.repair INFO: Identified 57 cosmic rays.
-    characterizeImage.detection INFO: Detected 957 positive peaks in 272 footprints and 0 negative peaks in 0 footprints to 50 sigma
-    characterizeImage.detection INFO: Resubtracting the background after object detection
-    ^C
-    Aborted!
-
-As expected, we get a new `u/jbosch/bootcamp/2` `CHAINED` collection that starts with a new `RUN` collection that holds the direct outputs:
-
-    $ butler query-collections DATA --flatten-chains u/jbosch/bootcamp/2
-    collections:
-    - u/jbosch/bootcamp/2/20201013T18h15m39s
-    - HSC/raw/all
-    - HSC/calib
-    - HSC/masks
-    - refcats
-    - skymaps
-
-And now we'll we'll run again with `--replace-run` (while dropping `-i HSC/defaults`):
-
-    $ pipetask run -b DATA -p pipelines/example.yaml -o u/jbosch/bootcamp/2 --replace-run -d "instrument='HSC' AND visit=903344 AND detector=5"
+    $ pipetask run -b DATA -p pipelines/example.yaml -i HSC/defaults -o u/jbosch/bootcamp/2 -d "instrument='HSC' AND visit=903344 AND detector=5"
     ctrl.mpexec.cmdLineFwk INFO: QuantumGraph contains 15 quanta for 4 tasks
     conda.common.io INFO: overtaking stderr and stdout
     conda.common.io INFO: stderr and stdout yielding back
@@ -591,11 +525,65 @@ And now we'll we'll run again with `--replace-run` (while dropping `-i HSC/defau
     ^C
     Aborted!
 
+As expected, we get a new `u/jbosch/bootcamp/2` `CHAINED` collection that starts with a new `RUN` collection that holds the direct outputs:
+
+    $ butler query-collections DATA --flatten-chains u/jbosch/bootcamp/2
+    collections:
+    - u/jbosch/bootcamp/2/20201014T21h46m24s
+    - HSC/raw/all
+    - HSC/calib
+    - HSC/masks
+    - refcats
+    - skymaps
+
+And now we'll we'll run again with `--replace-run` (while dropping `-i HSC/defaults`):
+
+    $ pipetask run -b DATA -p pipelines/example.yaml --replace-run -o u/jbosch/bootcamp/2 -d "instrument='HSC' AND visit=903344 AND detector=5"
+    ctrl.mpexec.cmdLineFwk INFO: QuantumGraph contains 15 quanta for 4 tasks
+    conda.common.io INFO: overtaking stderr and stdout
+    conda.common.io INFO: stderr and stdout yielding back
+    afw.image.MaskedImageFitsReader WARN: Expected extension type not found: IMAGE
+    afw.image.MaskedImageFitsReader WARN: Expected extension type not found: IMAGE
+    isr INFO: Converting exposure to floating point values.
+    isr INFO: Assembling CCD from amplifiers.
+    isr INFO: Applying bias correction.
+    isr INFO: Applying linearizer.
+    isr INFO: Applying crosstalk correction.
+    isr.crosstalk INFO: Applying crosstalk correction.
+    isr INFO: Masking defects.
+    isr INFO: Masking NAN value pixels.
+    isr INFO: Widening saturation trails.
+    isr WARN: darkExposure.getInfo().getVisitInfo() does not exist. Using darkScale = 1.0.
+    isr WARN: darkExposure.getInfo().getVisitInfo() does not exist. Using darkScale = 1.0.
+    isr INFO: Applying brighter fatter correction using kernel type <class 'numpy.ndarray'> / gains <class 'NoneType'>.
+    isr INFO: Finished brighter fatter correction in 3 iterations.
+    isr INFO: Ensuring image edges are masked as SUSPECT to the brighter-fatter kernel size.
+    isr INFO: Growing masks to account for brighter-fatter kernel convolution.
+    isr INFO: Applying dark correction.
+    isr WARN: darkExposure.getInfo().getVisitInfo() does not exist. Using darkScale = 1.0.
+    isr INFO: Applying flat correction.
+    isr INFO: Applying fringe correction after flat.
+    isr.fringe INFO: Filter not found in FringeTaskConfig.filters. Skipping fringe correction.
+    isr INFO: Constructing Vignette polygon.
+    isr INFO: Adding transmission curves.
+    isr INFO: Set 232863 BAD pixels to 178.167053.
+    isr INFO: Interpolating masked pixels.
+    isr INFO: Setting rough magnitude zero point: 32.692803
+    isr INFO: Measuring background level.
+    isr INFO: Flattened sky level: 178.161118 +/- 7.345197.
+    isr INFO: Measuring sky levels in 8x16 grids: 177.987633.
+    isr INFO: Sky flatness in 8x16 grids - pp: 0.026886 rms: 0.004539.
+    characterizeImage WARN: Source catalog detected and measured with placeholder or default PSF
+    characterizeImage.repair INFO: Identified 57 cosmic rays.
+    characterizeImage.detection INFO: Detected 957 positive peaks in 272 footprints and 0 negative peaks in 0 footprints to 50 sigma
+    ^C
+    Aborted!
+
 As promised, the `CHAINED` collection now points at a new `RUN` collection:
 
     $ butler query-collections DATA --flatten-chains u/jbosch/bootcamp/2
     collections:
-    - u/jbosch/bootcamp/2/20201013T21h16m50s
+    - u/jbosch/bootcamp/2/20201014T21h50m50s
     - HSC/raw/all
     - HSC/calib
     - HSC/masks
@@ -604,10 +592,11 @@ As promised, the `CHAINED` collection now points at a new `RUN` collection:
 
 but the old one hasn't gone away; it's just been shunted off to the side:
 
-    $ butler query-collections DATA u/jbosch/bootcamp/2/*
+    $ butler query-collections DATA u/jbosch/bootcamp/2*
     collections:
-    - u/jbosch/bootcamp/2/20201013T18h15m39s
-    - u/jbosch/bootcamp/2/20201013T21h16m50s
+    - u/jbosch/bootcamp/2/20201014T21h46m24s
+    - u/jbosch/bootcamp/2
+    - u/jbosch/bootcamp/2/20201014T21h50m50s
 
 So, if you're debugging a problem with a task or pipeline, you can:
 
@@ -619,14 +608,14 @@ So, if you're debugging a problem with a task or pipeline, you can:
 
 The last step (5) is a little clunky right now, because you can only delete them one at a time and you have to type out the full name, e.g.
 
-    $ butler prune-collection DATA --purge --unstore --collection u/jbosch/bootcamp/2/20201013T18h15m39s
+    $ butler prune-collection DATA --purge --unstore --collection u/jbosch/bootcamp/2/20201014T21h46m24s
 
 But we'll get that fixed (and, as mentioned earlier, make it okay to keep passing `-i` as long as the inputs don't change).
 If you're not super constrained by disk space, that's the workflow we'd recommend - better to have those displaced runs and not need them.
 
-But if you want to live on the edge and blow them away immediately, you can add `--prune-replaced=purge` as well to do that.
+If you want to live on the edge and blow them away immediately, you can add `--prune-replaced=purge` as well to do that.
 
-    $ pipetask run -b DATA -p pipelines/example.yaml -o u/jbosch/bootcamp/2 --replace-run --prune-replaced=purge -d "instrument='HSC' AND visit=903344 AND detector=5"
+    $ pipetask run -b DATA -p pipelines/example.yaml --replace-run --prune-replaced=purge -o u/jbosch/bootcamp/2 -d "instrument='HSC' AND visit=903344 AND detector=5"
     ctrl.mpexec.cmdLineFwk INFO: QuantumGraph contains 15 quanta for 4 tasks
     conda.common.io INFO: overtaking stderr and stdout
     conda.common.io INFO: stderr and stdout yielding back
@@ -665,6 +654,7 @@ But if you want to live on the edge and blow them away immediately, you can add 
     characterizeImage.repair INFO: Identified 57 cosmic rays.
     characterizeImage.detection INFO: Detected 957 positive peaks in 272 footprints and 0 negative peaks in 0 footprints to 50 sigma
     characterizeImage.detection INFO: Resubtracting the background after object detection
+    characterizeImage.measurement INFO: Measuring 272 sources (272 parents, 0 children)
     ^C
     Aborted!
 
@@ -672,7 +662,7 @@ Voila!  One new run in `u/jbosch/bootcamp/2`:
 
     $ butler query-collections DATA --flatten-chains u/jbosch/bootcamp/2
     collections:
-    - u/jbosch/bootcamp/2/20201013T21h37m22s
+    - u/jbosch/bootcamp/2/20201014T21h53m41s
     - HSC/raw/all
     - HSC/calib
     - HSC/masks
@@ -681,9 +671,10 @@ Voila!  One new run in `u/jbosch/bootcamp/2`:
 
 and no old run anywhere:
 
-    $ butler query-collections DATA u/jbosch/bootcamp/2/*
+    $ butler query-collections DATA u/jbosch/bootcamp/2*
     collections:
-    - u/jbosch/bootcamp/2/20201013T21h37m22s
+    - u/jbosch/bootcamp/2
+    - u/jbosch/bootcamp/2/20201014T21h53m41s
 
 There's also an intermediate option: `--prune-replaced=unstore`, which is supposed to let you just delete the actual files, while retaining all of the provenance information you'd need to reconstruct them in the database.
 But we don't yet save enough provenance for that to actually be useful, so it's best ignored for now.
